@@ -2,7 +2,6 @@ import { usePuter } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
 
-
 const AUTH_HEADERS = API_KEY
   ? {
       Authorization: `Bearer ${API_KEY}`,
@@ -170,7 +169,6 @@ function handleRunError(jqXHR) {
 async function handleResult(data) {
   const tat = Math.round(performance.now() - timeStart);
 
-
   const status = data.status;
   const stdout = decode(data.stdout);
   const compileOutput = decode(data.compile_output);
@@ -186,11 +184,10 @@ async function handleResult(data) {
   $runBtn.removeClass("loading");
 
   if (status.id >= 5) {
-
     const message = `Fix this code, this is the output. ${output}`;
     const response = await sendMessage(message);
-
-    addMessage(response, false);
+    const formattedResponse = marked.parse(response);
+    addMessage(formattedResponse, false);
   }
 
   window.top.postMessage(
@@ -259,9 +256,6 @@ class InlineInputWidget {
     this.buttonContainer.style.gap = "8px";
     this.buttonContainer.style.marginLeft = "auto";
 
-    
-    
-
     this.applyButton = document.createElement("button");
     this.applyButton.innerText = "Apply";
     this.applyButton.style.display = "none";
@@ -290,8 +284,6 @@ class InlineInputWidget {
       this.dispose();
     });
 
-    
-
     this.domNode.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         this.applyText();
@@ -319,34 +311,33 @@ class InlineInputWidget {
   }
 
   applyEdit() {
-    // Se elimina el código anterior reemplazándolo por una cadena vacía.
 
     this.editor.executeEdits("", [
       {
-        range: this.selectRange, // El rango que contiene el código anterior
-        text: "", // Texto vacío para eliminarlo
+        range: this.selectRange, 
+        text: "", 
         forceMoveMarkers: true,
       },
     ]);
     this.editor.deltaDecorations(this.decorationIds, []);
 
-    // Finalmente, se elimina el widget.
+
     this.dispose();
   }
 
   finalizeEdit() {
-    // Se elimina el código anterior reemplazándolo por una cadena vacía.
+
     const extendedRange = new monaco.Range(
       this.selectionRange.startLineNumber,
-      this.selectionRange.startColumn,
+      1,
       this.selectionRange.endLineNumber + 1,
       1
     );
 
     this.editor.executeEdits("", [
       {
-        range: extendedRange, // El rango que contiene el código anterior
-        text: "", // Texto vacío para eliminarlo
+        range: extendedRange, 
+        text: "",
         forceMoveMarkers: true,
       },
     ]);
@@ -356,7 +347,6 @@ class InlineInputWidget {
   }
 
   async applyText() {
-
     const message = `Return only the code for this query: ${
       this.inputElement.value
     }. The response must be strictly based on this part of the code: ${this.editor
@@ -367,7 +357,6 @@ class InlineInputWidget {
     If a comment is requested, include the selected part of the code again, no formatting, no language identifiers`;
 
     const response = await sendMessage(message);
-
 
     const insertPosition = new monaco.Position(
       this.selectionRange.startLineNumber,
@@ -380,7 +369,6 @@ class InlineInputWidget {
       insertPosition.column
     );
 
-    // Preparar el texto a insertar (podrías agregar un salto de línea para separar el contenido).
     const textToInsert = response + "\n";
     this.editor.executeEdits("", [
       {
@@ -940,6 +928,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       );
 
       function createInlineInput(editor) {
+        //here
         const selection = editor.getSelection();
         const position = selection.getStartPosition();
         new InlineInputWidget(editor, position, selection);
@@ -950,9 +939,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         label: "AI - Select Code",
         contextMenuGroupId: "navigation",
         contextMenuOder: 1.5,
-        run: function (editor) {
+        run: function () {
           createInlineInput(sourceEditor);
-
         },
       });
 
@@ -1032,7 +1020,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       chatContainer.find("#api-key").on("change", function () {
         window.GLOBAL_API_KEY = $(this).val();
-        
       });
 
       const inputTextarea = chatContainer.find(".chat-input");
@@ -1043,15 +1030,18 @@ document.addEventListener("DOMContentLoaded", async function () {
         addMessage(message, true);
         inputTextarea.val("");
         const response = await sendMessage(message);
-        addMessage(response, false);
+        const formattedResponse = marked.parse(response);
+        addMessage(formattedResponse, false);
       });
-      inputTextarea.on("keypress", function (e) {
+      inputTextarea.on("keypress", async function (e) {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           const message = inputTextarea.val().trim();
           addMessage(message, true);
           inputTextarea.val("");
-          sendMessage(message);
+          const response = await sendMessage(message);
+          const formattedResponse = marked.parse(response);
+          addMessage(formattedResponse, false);
         }
       });
 
