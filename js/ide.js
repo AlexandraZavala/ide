@@ -2,8 +2,7 @@ import { usePuter } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
 
-const OPENAI_API_KEY =
-  "";
+
 const AUTH_HEADERS = API_KEY
   ? {
       Authorization: `Bearer ${API_KEY}`,
@@ -170,7 +169,7 @@ function handleRunError(jqXHR) {
 
 async function handleResult(data) {
   const tat = Math.round(performance.now() - timeStart);
-  console.log(`It took ${tat}ms to get submission result.`);
+
 
   const status = data.status;
   const stdout = decode(data.stdout);
@@ -187,10 +186,10 @@ async function handleResult(data) {
   $runBtn.removeClass("loading");
 
   if (status.id >= 5) {
-    console.log("");
+
     const message = `Fix this code, this is the output. ${output}`;
     const response = await sendMessage(message);
-    console.log(response);
+
     addMessage(response, false);
   }
 
@@ -233,7 +232,7 @@ class InlineInputWidget {
     this.inputElement.type = "text";
     this.inputElement.placeholder = "Edit...";
     this.inputElement.style.border = "1px solid gray";
-    this.inputElement.style.background = "#333333";
+    this.inputElement.style.background = "#222222";
     this.inputElement.style.padding = "3px";
     this.inputElement.style.fontSize = "12px";
     this.inputElement.style.color = "white";
@@ -267,7 +266,7 @@ class InlineInputWidget {
     this.applyButton.innerText = "Apply";
     this.applyButton.style.display = "none";
     this.applyButton.style.color = "white";
-    this.applyButton.style.background = "#333333";
+    this.applyButton.style.background = "#222222";
     this.applyButton.addEventListener("click", () => {
       this.applyEdit();
     });
@@ -277,7 +276,7 @@ class InlineInputWidget {
     this.deleteButton = document.createElement("button");
     this.deleteButton.innerText = "Delete";
     this.deleteButton.style.display = "none";
-    this.deleteButton.style.background = "#333333";
+    this.deleteButton.style.background = "#222222";
     this.deleteButton.style.color = "white";
     this.deleteButton.addEventListener("click", () => {
       this.finalizeEdit();
@@ -357,7 +356,7 @@ class InlineInputWidget {
   }
 
   async applyText() {
-    console.log(this.inputElement.value);
+
     const message = `Return only the code for this query: ${
       this.inputElement.value
     }. The response must be strictly based on this part of the code: ${this.editor
@@ -368,7 +367,7 @@ class InlineInputWidget {
     If a comment is requested, include the selected part of the code again, no formatting, no language identifiers`;
 
     const response = await sendMessage(message);
-    console.log(response);
+
 
     const insertPosition = new monaco.Position(
       this.selectionRange.startLineNumber,
@@ -785,7 +784,7 @@ function addMessage(message, isUser = true) {
           }">
               <div class="${
                 isUser
-                  ? "tw-bg-gray-800 tw-text-white"
+                  ? "tw-bg-[#4C5AB0] tw-text-white"
                   : "tw-bg-gray-200 dark:tw-bg-gray-700"
               } tw-rounded tw-p-2 tw-max-w-[80%] tw-text-white">
                   ${message}
@@ -805,7 +804,7 @@ async function sendMessage(message) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${window.GLOBAL_API_KEY}`,
       },
       body: JSON.stringify({
         model: "gpt-3.5-turbo",
@@ -953,7 +952,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         contextMenuOder: 1.5,
         run: function (editor) {
           createInlineInput(sourceEditor);
-          console.log("applied");
+
         },
       });
 
@@ -993,7 +992,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     layout.registerComponent("chat", function (container, state) {
       chatContainer = $(`
-                <div class="tw-flex tw-flex-col tw-h-full tw-bg-white dark:tw-bg-[#333333]">
+                <div class="tw-flex tw-flex-col tw-h-full tw-bg-white dark:tw-bg-[#222222]">
                     <!-- Messages Area -->
                     <div class="chat-messages tw-flex-1 tw-overflow-y-auto tw-p-4 tw-space-y-4">
                         <!-- Messages will be inserted here -->
@@ -1005,10 +1004,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                       <select id="models" class="models tw-bg-gray-50 tw-border tw-border-gray-300 tw-text-gray-900 tw-text-xs tw-rounded-lg focus:tw-ring-blue-500 focus:tw-border-blue-500 tw-block tw-w-full tw-p-1.5 dark:tw-bg-gray-700 dark:tw-border-gray-600 dark:tw-placeholder-gray-400 dark:tw-text-white dark:tw-focus:ring-blue-500 dark:tw-focus:border-blue-500">
                         <option selected>Choose a model</option>
                         <option value="US">gpt 3.5</option>
-                        <option value="CA">Deepseek</option>
-                        <option value="FR">Gemini</option>
-                        <option value="FR">llama</option>
                       </select>
+                      <input id="api-key" type="password" class="api-key tw-w-full tw-bg-gray-900 tw-text-white tw-border tw-mt-1 tw-rounded" placeholder="API-KEY" />
                     </form>
                     
                     <!-- Input Area -->
@@ -1020,7 +1017,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                                 rows="1"
                             ></textarea>
                             <button 
-                                class="chat-send-btn tw-px-4 tw-py-2 tw-bg-gray-900 tw-text-white tw-rounded"
+                                class="chat-send-btn tw-px-4 tw-py-2 tw-bg-[#2b3a8f] tw-text-white tw-rounded"
                             >
                                 Send
                             </button>
@@ -1031,6 +1028,12 @@ document.addEventListener("DOMContentLoaded", async function () {
           `);
 
       container.getElement().append(chatContainer);
+      window.GLOBAL_API_KEY = window.GLOBAL_API_KEY || "";
+
+      chatContainer.find("#api-key").on("change", function () {
+        window.GLOBAL_API_KEY = $(this).val();
+        
+      });
 
       const inputTextarea = chatContainer.find(".chat-input");
       const sendButton = chatContainer.find(".chat-send-btn");
