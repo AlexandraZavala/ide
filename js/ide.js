@@ -2,8 +2,8 @@ import { usePuter } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
 
-const OPENAI_API_KEY="";
-
+const OPENAI_API_KEY =
+  "";
 const AUTH_HEADERS = API_KEY
   ? {
       Authorization: `Bearer ${API_KEY}`,
@@ -38,6 +38,7 @@ var layout;
 var sourceEditor;
 var stdinEditor;
 var stdoutEditor;
+var chatContainer;
 
 var $selectLanguage;
 var $compilerOptions;
@@ -103,8 +104,7 @@ var layoutConfig = {
               componentState: {
                 readOnly: false,
               },
-            }
-    
+            },
           ],
         },
       ],
@@ -168,7 +168,7 @@ function handleRunError(jqXHR) {
   );
 }
 
-function handleResult(data) {
+async function handleResult(data) {
   const tat = Math.round(performance.now() - timeStart);
   console.log(`It took ${tat}ms to get submission result.`);
 
@@ -186,6 +186,14 @@ function handleResult(data) {
 
   $runBtn.removeClass("loading");
 
+  if (status.id >= 5) {
+    console.log("");
+    const message = `Fix this code, this is the output. ${output}`;
+    const response = await sendMessage(message);
+    console.log(response);
+    addMessage(response, false);
+  }
+
   window.top.postMessage(
     JSON.parse(
       JSON.stringify({
@@ -198,6 +206,236 @@ function handleResult(data) {
     ),
     "*"
   );
+}
+
+class InlineInputWidget {
+  static widgetCounter = 0;
+  constructor(editor, position, selectionRange) {
+    this.editor = editor;
+    this.position = position;
+    this.selectionRange = selectionRange;
+    this.id = `inline.input.widget.${++InlineInputWidget.widgetCounter}`;
+
+    const width = editor.getDomNode().clientWidth + "px";
+
+    // Crear un contenedor para el input y el botón de cerrar
+    this.domNode = document.createElement("div");
+    this.domNode.style.position = "absolute";
+    this.domNode.style.width = width;
+    this.domNode.style.display = "flex";
+    this.domNode.style.alignItems = "center";
+    this.domNode.style.padding = "4px";
+    this.domNode.style.boxSizing = "border-box";
+    this.domNode.style.background = "#222";
+    this.domNode.style.border = "1px solid gray";
+
+    this.inputElement = document.createElement("input");
+    this.inputElement.type = "text";
+    this.inputElement.placeholder = "Edit...";
+    this.inputElement.style.border = "1px solid gray";
+    this.inputElement.style.background = "#333333";
+    this.inputElement.style.padding = "3px";
+    this.inputElement.style.fontSize = "12px";
+    this.inputElement.style.color = "white";
+    this.inputElement.style.width = "calc(100% - 30px)";
+
+    this.domNode.appendChild(this.inputElement);
+
+    this.closeButton = document.createElement("button");
+    this.closeButton.innerText = "x";
+    this.closeButton.style.top = "5px";
+    this.closeButton.style.right = "0";
+    this.closeButton.style.padding = "0 0px";
+    this.closeButton.style.marginLeft = "3px";
+    this.closeButton.style.border = "none";
+    this.closeButton.style.color = "white";
+    this.closeButton.style.background = "transparent";
+    this.closeButton.style.cursor = "pointer";
+
+    // Agregar el botón al contenedor
+    this.domNode.appendChild(this.closeButton);
+
+    this.buttonContainer = document.createElement("div");
+    this.buttonContainer.style.display = "flex";
+    this.buttonContainer.style.gap = "8px";
+    this.buttonContainer.style.marginLeft = "auto";
+
+    
+    
+
+    this.applyButton = document.createElement("button");
+    this.applyButton.innerText = "Apply";
+    this.applyButton.style.display = "none";
+    this.applyButton.style.color = "white";
+    this.applyButton.style.background = "#333333";
+    this.applyButton.addEventListener("click", () => {
+      this.applyEdit();
+    });
+
+    this.buttonContainer.appendChild(this.applyButton);
+
+    this.deleteButton = document.createElement("button");
+    this.deleteButton.innerText = "Delete";
+    this.deleteButton.style.display = "none";
+    this.deleteButton.style.background = "#333333";
+    this.deleteButton.style.color = "white";
+    this.deleteButton.addEventListener("click", () => {
+      this.finalizeEdit();
+    });
+
+    this.buttonContainer.appendChild(this.deleteButton);
+    this.domNode.appendChild(this.buttonContainer);
+
+    // Evento para cerrar el widget
+    this.closeButton.addEventListener("click", () => {
+      this.dispose();
+    });
+
+    
+
+    this.domNode.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        this.applyText();
+      }
+    });
+
+    this.editor.addContentWidget(this);
+    this.domNode.focus();
+    this.domNode.select();
+  }
+
+  getId() {
+    return this.id;
+  }
+
+  getDomNode() {
+    return this.domNode;
+  }
+
+  getPosition() {
+    return {
+      position: this.position,
+      preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE],
+    };
+  }
+
+  applyEdit() {
+    // Se elimina el código anterior reemplazándolo por una cadena vacía.
+
+    this.editor.executeEdits("", [
+      {
+        range: this.selectRange, // El rango que contiene el código anterior
+        text: "", // Texto vacío para eliminarlo
+        forceMoveMarkers: true,
+      },
+    ]);
+    this.editor.deltaDecorations(this.decorationIds, []);
+
+    // Finalmente, se elimina el widget.
+    this.dispose();
+  }
+
+  finalizeEdit() {
+    // Se elimina el código anterior reemplazándolo por una cadena vacía.
+    const extendedRange = new monaco.Range(
+      this.selectionRange.startLineNumber,
+      this.selectionRange.startColumn,
+      this.selectionRange.endLineNumber + 1,
+      1
+    );
+
+    this.editor.executeEdits("", [
+      {
+        range: extendedRange, // El rango que contiene el código anterior
+        text: "", // Texto vacío para eliminarlo
+        forceMoveMarkers: true,
+      },
+    ]);
+    this.editor.deltaDecorations(this.decorationIds, []);
+
+    this.dispose();
+  }
+
+  async applyText() {
+    console.log(this.inputElement.value);
+    const message = `Return only the code for this query: ${
+      this.inputElement.value
+    }. The response must be strictly based on this part of the code: ${this.editor
+      .getModel()
+      .getValueInRange(
+        this.selectionRange
+      )}. No explanations, no extra text, no formatting, no language identifiers, just raw code and code comments.
+    If a comment is requested, include the selected part of the code again, no formatting, no language identifiers`;
+
+    const response = await sendMessage(message);
+    console.log(response);
+
+    const insertPosition = new monaco.Position(
+      this.selectionRange.startLineNumber,
+      1
+    );
+    const insertRange = new monaco.Range(
+      insertPosition.lineNumber,
+      insertPosition.column,
+      insertPosition.lineNumber,
+      insertPosition.column
+    );
+
+    // Preparar el texto a insertar (podrías agregar un salto de línea para separar el contenido).
+    const textToInsert = response + "\n";
+    this.editor.executeEdits("", [
+      {
+        range: insertRange,
+        text: textToInsert,
+        forceMoveMarkers: true,
+      },
+    ]);
+    const numLinesInserted = textToInsert.split("\n").length - 1;
+    const decorationRange = new monaco.Range(
+      insertPosition.lineNumber,
+      1,
+      insertPosition.lineNumber + numLinesInserted,
+      1
+    );
+
+    this.selectRange = new monaco.Range(
+      insertPosition.lineNumber + numLinesInserted,
+      1,
+      insertPosition.lineNumber +
+        numLinesInserted +
+        (this.selectionRange.endLineNumber -
+          this.selectionRange.startLineNumber) +
+        1,
+      1
+    );
+
+    this.decorationIds = this.editor.deltaDecorations(
+      [],
+      [
+        {
+          range: decorationRange,
+          options: {
+            isWholeLine: true,
+            className: "tw-bg-green-900",
+          },
+        },
+        {
+          range: this.selectRange,
+          options: {
+            isWholeLine: true,
+            className: "tw-bg-red-900",
+          },
+        },
+      ]
+    );
+
+    this.applyButton.style.display = "block";
+    this.deleteButton.style.display = "block";
+  }
+
+  dispose() {
+    this.editor.removeContentWidget(this);
+  }
 }
 
 async function getSelectedLanguage() {
@@ -539,6 +777,68 @@ function refreshLayoutSize() {
   layout.updateSize();
 }
 
+function addMessage(message, isUser = true) {
+  const messagesDiv = chatContainer.find(".chat-messages");
+  const messageElement = $(`
+          <div class="tw-flex ${
+            isUser ? "tw-justify-end" : "tw-justify-start"
+          }">
+              <div class="${
+                isUser
+                  ? "tw-bg-gray-800 tw-text-white"
+                  : "tw-bg-gray-200 dark:tw-bg-gray-700"
+              } tw-rounded tw-p-2 tw-max-w-[80%] tw-text-white">
+                  ${message}
+              </div>
+          </div>
+      `);
+
+  messagesDiv.append(messageElement);
+  messagesDiv.scrollTop(messagesDiv[0].scrollHeight);
+}
+
+async function sendMessage(message) {
+  const currentCode = sourceEditor.getValue();
+
+  if (message) {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: `You are a highly advanced AI coding assistant specialized in debugging, optimizing, and improving code quality. Your goal is to help developers identify and fix bugs, enhance code efficiency (both time and space complexity), improve security, and ensure best practices.
+
+              When analyzing code, provide:
+
+              1. Bug detection and fixes – Identify logical, syntax, or runtime errors and suggest corrections.
+              2. Optimization suggestions – Recommend ways to improve performance, reduce memory usage, and simplify the code.
+              3. Security improvements – Detect vulnerabilities and propose secure coding practices.
+              4. Best practices – Ensure maintainability, readability, and adherence to coding standards.
+              
+              Whenever possible, explain your reasoning in a clear and concise manner, offering examples and alternatives. If the user provides incomplete code or a vague request, ask clarifying questions before proceeding.
+              Be precise, practical, and results-driven. Think step by step.
+              Here is the code: ${currentCode}               
+              `,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+      }),
+    });
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content;
+    return aiResponse;
+  }
+}
+
 window.addEventListener("resize", refreshLayoutSize);
 document.addEventListener("DOMContentLoaded", async function () {
   $("#select-language").dropdown();
@@ -639,6 +939,30 @@ document.addEventListener("DOMContentLoaded", async function () {
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
         run
       );
+
+      function createInlineInput(editor) {
+        const selection = editor.getSelection();
+        const position = selection.getStartPosition();
+        new InlineInputWidget(editor, position, selection);
+      }
+
+      sourceEditor.addAction({
+        id: "edit-code",
+        label: "AI - Select Code",
+        contextMenuGroupId: "navigation",
+        contextMenuOder: 1.5,
+        run: function (editor) {
+          createInlineInput(sourceEditor);
+          console.log("applied");
+        },
+      });
+
+      sourceEditor.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF,
+        function () {
+          sourceEditor.getAction("fix-code").run();
+        }
+      );
     });
 
     layout.registerComponent("stdin", function (container, state) {
@@ -668,7 +992,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
     layout.registerComponent("chat", function (container, state) {
-      const chatContainer = $(`
+      chatContainer = $(`
                 <div class="tw-flex tw-flex-col tw-h-full tw-bg-white dark:tw-bg-[#333333]">
                     <!-- Messages Area -->
                     <div class="chat-messages tw-flex-1 tw-overflow-y-auto tw-p-4 tw-space-y-4">
@@ -708,91 +1032,23 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       container.getElement().append(chatContainer);
 
-      const messagesDiv = chatContainer.find(".chat-messages");
       const inputTextarea = chatContainer.find(".chat-input");
       const sendButton = chatContainer.find(".chat-send-btn");
 
-      function addMessage(message, isUser = true) {
-        const messageElement = $(`
-                <div class="tw-flex ${
-                  isUser ? "tw-justify-end" : "tw-justify-start"
-                }">
-                    <div class="${
-                      isUser
-                        ? "tw-bg-gray-800 tw-text-white"
-                        : "tw-bg-gray-200 dark:tw-bg-gray-700"
-                    } tw-rounded tw-p-2 tw-max-w-[80%] tw-text-white">
-                        ${message}
-                    </div>
-                </div>
-            `);
-
-        messagesDiv.append(messageElement);
-        messagesDiv.scrollTop(messagesDiv[0].scrollHeight);
-      }
-
-      function sendMessage() {
+      sendButton.on("click", async function () {
         const message = inputTextarea.val().trim();
-
-        const currentCode = sourceEditor.getValue();
-
-        if (message) {
-          addMessage(message, true);
-          inputTextarea.val("");
-
-          // Connect to an LLM
-
-          fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${OPENAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-              model: "gpt-3.5-turbo",
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a highly advanced AI coding assistant specialized in debugging, optimizing, and improving code quality. Your goal is to help developers identify and fix bugs, enhance code efficiency (both time and space complexity), improve security, and ensure best practices.
-    
-                    When analyzing code, provide:
-    
-                    1. Bug detection and fixes – Identify logical, syntax, or runtime errors and suggest corrections.
-                    2. Optimization suggestions – Recommend ways to improve performance, reduce memory usage, and simplify the code.
-                    3. Security improvements – Detect vulnerabilities and propose secure coding practices.
-                    4. Best practices – Ensure maintainability, readability, and adherence to coding standards.
-                    
-                    Whenever possible, explain your reasoning in a clear and concise manner, offering examples and alternatives. If the user provides incomplete code or a vague request, ask clarifying questions before proceeding.
-                    Be precise, practical, and results-driven. Think step by step.
-                    Here is the code: ${currentCode}               
-                    `,
-                },
-                {
-                  role: "user",
-                  content: message,
-                },
-              ],
-            }),
-          })
-            .then((response) => response.json())
-            .then((data) => {
-              const aiResponse = data.choices[0].message.content;
-              addMessage(aiResponse, false);
-            })
-            .catch((error) => {
-              loadingDiv.remove();
-
-              addMessage("Sorry, there was an error", false);
-              console.error("Error: ", error);
-            });
-        }
-      }
-
-      sendButton.on("click", sendMessage);
+        addMessage(message, true);
+        inputTextarea.val("");
+        const response = await sendMessage(message);
+        addMessage(response, false);
+      });
       inputTextarea.on("keypress", function (e) {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          sendMessage();
+          const message = inputTextarea.val().trim();
+          addMessage(message, true);
+          inputTextarea.val("");
+          sendMessage(message);
         }
       });
 
